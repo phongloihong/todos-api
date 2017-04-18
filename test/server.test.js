@@ -1,5 +1,6 @@
 const chai = require('chai');
 const chaiHttp = require('chai-http');
+const { ObjectID } = require('mongodb');
 const expect = chai.expect;
 
 const { app } = require('../server/server');
@@ -9,8 +10,10 @@ chai.use(chaiHttp);
 
 const todos = [
   {
+    _id: new ObjectID(),
     text: 'First something to do',
   }, {
+    _id: new ObjectID(),
     text: 'Second something to do',
   },
 ];
@@ -67,6 +70,36 @@ describe('GET /todos', () => {
       .end((err, res) => {
         expect(res).to.have.status(200);
         expect(res.body.todos.length).to.equal(2);
+        done();
+      });
+  });
+});
+
+describe('GET /todos/:id', () => {
+  it('Should return todo doc', done => {
+    chai.request(app)
+      .get(`/todos/${todos[0]._id.toHexString()}`)
+      .end((err, res) => {
+        expect(res).to.have.status(200);
+        expect(res.body.todo.text).to.equal(todos[0].text);
+        done();
+      });
+  });
+
+  it('Should return 404 if todo not found', done => {
+    chai.request(app)
+      .get(`/todos/${new ObjectID().toHexString()}`)
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        done();
+      });
+  });
+
+  it('Should return 404 if unvalid id', done => {
+    chai.request(app)
+      .get('/todos/12')
+      .end((err, res) => {
+        expect(res).to.have.status(404);
         done();
       });
   });
