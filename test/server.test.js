@@ -7,8 +7,18 @@ const { Todo } = require('../server/models/todo');
 
 chai.use(chaiHttp);
 
+const todos = [
+  {
+    text: 'First something to do',
+  }, {
+    text: 'Second something to do',
+  },
+];
+
 beforeEach(done => {
-  Todo.remove({}).then(() => done());
+  Todo.remove({})
+    .then(() => Todo.insertMany(todos))
+    .then(() => done());
 });
 
 describe('POST /todos', () => {
@@ -22,7 +32,7 @@ describe('POST /todos', () => {
         if (err) return done(err);
         expect(res).to.have.status(200);
         expect(res.body.text).to.equal(text);
-        Todo.find()
+        Todo.find({ text })
           .then(todos => {
             expect(todos.length).to.equal(1);
             expect(todos[0].text).to.equal(text);
@@ -42,10 +52,22 @@ describe('POST /todos', () => {
         expect(res).to.have.status(400);
         Todo.find()
           .then(todos => {
-            expect(todos.length).to.equal(0);
+            expect(todos.length).to.equal(2);
             done();
           })
           .catch(e => done(e));
+      });
+  });
+});
+
+describe('GET /todos', () => {
+  it('Should get all todos', done => {
+    chai.request(app)
+      .get('/todos')
+      .end((err, res) => {
+        expect(res).to.have.status(200);
+        expect(res.body.todos.length).to.equal(2);
+        done();
       });
   });
 });
