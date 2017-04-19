@@ -15,6 +15,8 @@ const todos = [
   }, {
     _id: new ObjectID(),
     text: 'Second something to do',
+    completed: true,
+    completedAt: 123,
   },
 ];
 
@@ -100,6 +102,80 @@ describe('GET /todos/:id', () => {
       .get('/todos/12')
       .end((err, res) => {
         expect(res).to.have.status(404);
+        done();
+      });
+  });
+});
+
+describe('DELETE /todos/:id', () => {
+  it('Should remove a todo', done => {
+    let hexID = todos[0]._id.toHexString();
+    chai.request(app)
+      .delete(`/todos/${hexID}`)
+      .end((err, res) => {
+        if (err) return done(err);
+
+        expect(res).to.have.status(200);
+        expect(res.body.todo._id).to.equal(hexID);
+        Todo.findById(hexID)
+          .then(todo => {
+            expect(todo).to.not.exits;
+            done();
+          })
+          .catch(e => done(e));
+      });
+  });
+
+  it('Should return 404 if not found', done => {
+    chai.request(app)
+      .delete(`/todos/${new ObjectID().toHexString()}`)
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        done();
+      });
+  });
+
+  it('Should return 404 if id is Invalid', done => {
+    chai.request(app)
+      .delete('/todos/12')
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        done();
+      });
+  });
+});
+
+describe('PATCH /todos/:id', () => {
+  it('Should update todo', done => {
+    let hexID = todos[0]._id.toHexString();
+    let text = 'Hey yo this is mocha test';
+
+    chai.request(app)
+      .patch(`/todos/${hexID}`)
+      .send({ completed: true, text: text })
+      .end((err, res) => {
+        if (err) return done(err);
+        expect(res).to.have.status(200);
+        expect(res.body.todo.completed).to.equal(true);
+        expect(res.body.todo.text).to.equal(text);
+        expect(res.body.todo.completedAt).not.to.be.NaN;
+        done();
+      });
+  });
+
+  it('Should clear completedAt when todo is not completed', done => {
+    let hexID = todos[0]._id.toHexString();
+    let text = 'Hey yo this is mocha test!!!';
+
+    chai.request(app)
+      .patch(`/todos/${hexID}`)
+      .send({ completed: false, text: text })
+      .end((err, res) => {
+        if (err) return done(err);
+        expect(res).to.have.status(200);
+        expect(res.body.todo.completed).to.equal(false);
+        expect(res.body.todo.text).to.equal(text);
+        expect(res.body.todo.completedAt).to.not.exits;
         done();
       });
   });
