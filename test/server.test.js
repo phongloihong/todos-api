@@ -21,6 +21,7 @@ describe('POST /todos', () => {
 
     chai.request(app)
       .post('/todos')
+      .set('x-auth', users[0].tokens[0].token)
       .send({ text })
       .end((err, res) => {
         if (err) return done(err);
@@ -41,6 +42,7 @@ describe('POST /todos', () => {
 
     chai.request(app)
       .post('/todos')
+      .set('x-auth', users[0].tokens[0].token)
       .send({ text })
       .end((err, res) => {
         expect(res).to.have.status(400);
@@ -58,9 +60,10 @@ describe('GET /todos', () => {
   it('Should get all todos', (done) => {
     chai.request(app)
       .get('/todos')
+      .set('x-auth', users[0].tokens[0].token)
       .end((err, res) => {
         expect(res).to.have.status(200);
-        expect(res.body.todos.length).to.equal(2);
+        expect(res.body.todos.length).to.equal(1);
         done();
       });
   });
@@ -70,6 +73,7 @@ describe('GET /todos/:id', () => {
   it('Should return todo doc', (done) => {
     chai.request(app)
       .get(`/todos/${todos[0]._id.toHexString()}`)
+      .set('x-auth', users[0].tokens[0].token)
       .end((err, res) => {
         expect(res).to.have.status(200);
         expect(res.body.todo.text).to.equal(todos[0].text);
@@ -77,9 +81,20 @@ describe('GET /todos/:id', () => {
       });
   });
 
+  it('Should not return todo doc created by other user', (done) => {
+    chai.request(app)
+      .get(`/todos/${todos[1]._id.toHexString()}`)
+      .set('x-auth', users[0].tokens[0].token)
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        done();
+      });
+  });
+
   it('Should return 404 if todo not found', (done) => {
     chai.request(app)
       .get(`/todos/${new ObjectID().toHexString()}`)
+      .set('x-auth', users[0].tokens[0].token)
       .end((err, res) => {
         expect(res).to.have.status(404);
         done();
@@ -89,6 +104,7 @@ describe('GET /todos/:id', () => {
   it('Should return 404 if unvalid id', (done) => {
     chai.request(app)
       .get('/todos/12')
+      .set('x-auth', users[0].tokens[0].token)
       .end((err, res) => {
         expect(res).to.have.status(404);
         done();
@@ -98,9 +114,10 @@ describe('GET /todos/:id', () => {
 
 describe('DELETE /todos/:id', () => {
   it('Should remove a todo', done => {
-    let hexID = todos[0]._id.toHexString();
+    let hexID = todos[1]._id.toHexString();
     chai.request(app)
       .delete(`/todos/${hexID}`)
+      .set('x-auth', users[1].tokens[0].token)
       .end((err, res) => {
         if (err) return done(err);
 
@@ -108,7 +125,23 @@ describe('DELETE /todos/:id', () => {
         expect(res.body.todo._id).to.equal(hexID);
         Todo.findById(hexID)
           .then((todo) => {
-            expect(todo).to.not.exits;
+            expect(todo).to.not.exist;
+            done();
+          })
+          .catch(e => done(e));
+      });
+  });
+
+  it('Should not remove a todo', done => {
+    let hexID = todos[0]._id.toHexString();
+    chai.request(app)
+      .delete(`/todos/${hexID}`)
+      .set('x-auth', users[1].tokens[0].token)
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        Todo.findById(hexID)
+          .then((todo) => {
+            expect(todo).to.exist;
             done();
           })
           .catch(e => done(e));
@@ -118,6 +151,7 @@ describe('DELETE /todos/:id', () => {
   it('Should return 404 if not found', (done) => {
     chai.request(app)
       .delete(`/todos/${new ObjectID().toHexString()}`)
+      .set('x-auth', users[1].tokens[0].token)
       .end((err, res) => {
         expect(res).to.have.status(404);
         done();
@@ -127,6 +161,7 @@ describe('DELETE /todos/:id', () => {
   it('Should return 404 if id is Invalid', (done) => {
     chai.request(app)
       .delete('/todos/12')
+      .set('x-auth', users[1].tokens[0].token)
       .end((err, res) => {
         expect(res).to.have.status(404);
         done();
@@ -141,6 +176,7 @@ describe('PATCH /todos/:id', () => {
 
     chai.request(app)
       .patch(`/todos/${hexID}`)
+      .set('x-auth', users[0].tokens[0].token)
       .send({ completed: true, text: text })
       .end((err, res) => {
         if (err) return done(err);
@@ -152,19 +188,35 @@ describe('PATCH /todos/:id', () => {
       });
   });
 
+  it('Should not update todo created by another user', (done) => {
+    let hexID = todos[0]._id.toHexString();
+    let text = 'Hey yo this is mocha test';
+
+    chai.request(app)
+      .patch(`/todos/${hexID}`)
+      .set('x-auth', users[1].tokens[0].token)
+      .send({ completed: true, text: text })
+      .end((err, res) => {
+        expect(res).to.have.status(404);
+        
+        return done();
+      });
+  });
+
   it('Should clear completedAt when todo is not completed', (done) => {
     let hexID = todos[0]._id.toHexString();
     let text = 'Hey yo this is mocha test!!!';
 
     chai.request(app)
       .patch(`/todos/${hexID}`)
+      .set('x-auth', users[0].tokens[0].token)
       .send({ completed: false, text: text })
       .end((err, res) => {
         if (err) return done(err);
         expect(res).to.have.status(200);
         expect(res.body.todo.completed).to.equal(false);
         expect(res.body.todo.text).to.equal(text);
-        expect(res.body.todo.completedAt).to.not.exits;
+        expect(res.body.todo.completedAt).to.not.exist;
         return done();
       });
   });
@@ -216,7 +268,8 @@ describe('POST /users', () => {
             expect(user).to.exist;
             expect(user.password).to.not.equal(password);
             done();
-          });
+          })
+          .catch(e => done(e));;
       });
   });
 
@@ -245,4 +298,67 @@ describe('POST /users', () => {
         done();
       });
   });
+});
+
+describe('POST /users/login', () => {
+  it('Should login user and return auth token', (done) => {
+    chai.request(app)
+      .post('/users/login')
+      .send({
+        email: users[1].email,
+        password: users[1].password,
+      })
+      .end((err, res) => {
+        expect(res).to.have.status(200);
+        expect(res.headers['x-auth']).to.exist;
+        
+        User.findById(users[1]._id)
+          .then((user) => {
+            expect(user.tokens[1].access).to.equal('auth');
+            expect(user.tokens[1].token).to.equal(res.headers['x-auth']);
+            done();
+          })
+          .catch(e => done(e));
+      });
+  });
+
+  it('Should reject invalid login', (done) => {
+    chai.request(app)
+      .post('/users/login')
+      .send({
+        email: users[1].email,
+        password: 'asdasd',
+      })
+      .end((err, res) => {
+        expect(res).to.have.status(400);
+
+        User.findById(users[1]._id)
+          .then((user) => {
+            expect(user.tokens.length).to.equal(1);
+            done();
+          })
+          .catch(e => done(e));
+      });
+  });
+});
+
+describe('DELETE /users/logout', () => {
+  it('Should remove auth token on logout', (done) => {
+    chai.request(app)
+      .delete('/users/logout')
+      .set('x-auth', users[0].tokens[0].token)
+      .end((err, res) => {
+        if (err) return done(err);
+
+        expect(res).to.have.status(200);
+
+        User.findById(users[0]._id)
+          .then((user) => {
+            expect(user.tokens.length).to.equal(0);
+            done();
+          })
+          .catch(e => done(e));
+      });
+  });
+
 });

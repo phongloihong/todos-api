@@ -44,11 +44,19 @@ UserSchema.methods.toJSON = function () {
 
 UserSchema.methods.generatorAuthToken = function () {
   const access = 'auth';
-  const token = jwt.sign({ _id: this._id.toHexString(), access }, 'secret123').toString();
+  const token = jwt.sign({ _id: this._id.toHexString(), access }, process.env.JWT_SECRET).toString();
 
   this.tokens.push({ access, token });
 
   return this.save().then(() => token); // return promise will get promise when call
+};
+
+UserSchema.methods.removeToken = function(token) {
+  return this.update({ 
+    $pull: {
+      tokens: { token },
+    },
+  });
 };
 
 // su dung static <=> khai bao tren toan bo model <=> tuong tac tren toan bo model
@@ -56,7 +64,7 @@ UserSchema.statics.findByToken = function (token) {
   let decoded;
 
   try {
-    decoded = jwt.verify(token, 'secret123');
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
   } catch (e) {
     return Promise.reject();
   }
@@ -76,7 +84,7 @@ UserSchema.statics.findByCredentials = function (email, password) {
     }
 
     return new Promise((resolve, reject) => {
-      
+
       // compare password
       bcrypt.compare(password, user.password, (err, res) => {
         if (res) {
